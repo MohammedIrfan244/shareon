@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import FileItem from '@/models/FileItem';
-import cloudinary from '@/lib/cloudinary';
+import { deleteDriveFile } from '@/lib/google-drive';
 import mongoose from 'mongoose';
 
 export async function GET(
@@ -21,6 +21,9 @@ export async function GET(
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
+    const isMongo = file.storageProvider === 'MONGODB' || (file as { storageType?: string }).storageType === 'mongodb_text';
+    const provider = isMongo ? 'MONGODB' : 'GDRIVE';
+
     if (file.isProtected) {
       return NextResponse.json({
         file: {
@@ -31,7 +34,7 @@ export async function GET(
           extension: file.extension,
           size: file.size,
           folderId: file.folderId,
-          storageType: file.storageType,
+          storageProvider: provider,
           isProtected: true,
           createdAt: file.createdAt,
           updatedAt: file.updatedAt,
@@ -39,7 +42,23 @@ export async function GET(
       });
     }
 
-    return NextResponse.json({ file });
+    return NextResponse.json({
+      file: {
+        _id: file._id,
+        title: file.title,
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        extension: file.extension,
+        size: file.size,
+        folderId: file.folderId,
+        storageProvider: provider,
+        driveFileId: file.driveFileId,
+        textContent: file.textContent,
+        isProtected: false,
+        createdAt: file.createdAt,
+        updatedAt: file.updatedAt,
+      },
+    });
   } catch (error: unknown) {
     console.error('Get file error:', error);
     return NextResponse.json({ error: 'Failed to retrieve file' }, { status: 500 });
@@ -63,14 +82,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    if (file.storageType === 'cloudinary' && file.cloudinary?.publicId) {
-      try {
-        await cloudinary.uploader.destroy(file.cloudinary.publicId, {
-          resource_type: (file.cloudinary.resourceType as 'image' | 'video' | 'raw') || 'image',
-        });
-      } catch (cloudErr) {
-        console.error('Cloudinary asset deletion error:', cloudErr);
-      }
+    // Permanent delete from Google Drive
+    if (file.driveFileId) {
+      await deleteDriveFile(file.driveFileId);
     }
 
     await FileItem.findByIdAndDelete(id);

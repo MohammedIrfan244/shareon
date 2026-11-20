@@ -9,6 +9,7 @@ import UnlockModal from '@/components/UnlockModal';
 import PreviewModal from '@/components/PreviewModal';
 import { IFolder, IFileItem, BreadcrumbItem } from '@/types';
 import { formatBytes } from '@/lib/file-utils';
+import { downloadFileStream } from '@/lib/client/drive-downloader';
 import {
   Folder as FolderIcon,
   ChevronRight,
@@ -21,8 +22,6 @@ import {
   Trash2,
   Download,
   Eye,
-  Link2,
-  Check,
   Loader2,
   FolderOpen,
   Home,
@@ -30,6 +29,8 @@ import {
   FolderPlus,
   LayoutGrid,
   List,
+  Link2,
+  Check,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -51,6 +52,8 @@ export default function DashboardPage() {
   const [previewTargetFile, setPreviewTargetFile] = useState<IFileItem | null>(null);
   const [unlockedData, setUnlockedData] = useState<{
     url?: string;
+    downloadUrl?: string;
+    accessToken?: string;
     textContent?: string;
     password?: string;
   } | null>(null);
@@ -63,6 +66,7 @@ export default function DashboardPage() {
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedFileId, setCopiedFileId] = useState<string | null>(null);
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
 
   const handleCopyLink = async (e: React.MouseEvent, fileId: string) => {
     e.stopPropagation();
@@ -73,6 +77,24 @@ export default function DashboardPage() {
       setTimeout(() => setCopiedFileId(null), 2000);
     } catch (err) {
       console.error('Failed to copy link', err);
+    }
+  };
+
+  const handleDownloadFile = async (e: React.MouseEvent, file: IFileItem) => {
+    e.stopPropagation();
+    if (file.isProtected) {
+      setUnlockTargetFile(file);
+      return;
+    }
+
+    setDownloadingFileId(file._id);
+    try {
+      await downloadFileStream({ fileId: file._id });
+    } catch (err) {
+      console.error('Download error:', err);
+      alert(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setDownloadingFileId(null);
     }
   };
 
@@ -197,6 +219,8 @@ export default function DashboardPage() {
 
   const handleUnlockSuccess = (data: {
     url?: string;
+    downloadUrl?: string;
+    accessToken?: string;
     textContent?: string;
     password?: string;
   }) => {
@@ -237,7 +261,7 @@ export default function DashboardPage() {
     if (mime.startsWith('image/')) return <ImageIcon className="w-4 h-4 text-zinc-400" />;
     if (mime.startsWith('video/')) return <Video className="w-4 h-4 text-zinc-400" />;
     if (mime.startsWith('audio/')) return <Music className="w-4 h-4 text-zinc-400" />;
-    if (file.storageType === 'mongodb_text') return <FileText className="w-4 h-4 text-zinc-400" />;
+    if (file.storageProvider === 'MONGODB' || file.textContent) return <FileText className="w-4 h-4 text-zinc-400" />;
     return <File className="w-4 h-4 text-zinc-400" />;
   };
 
@@ -251,6 +275,7 @@ export default function DashboardPage() {
         }}
         onOpenUpload={() => setIsUploadOpen(true)}
         onOpenNewFolder={() => setIsNewFolderOpen(true)}
+        refreshTrigger={refreshKey}
       />
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-4 sm:py-6">
@@ -324,7 +349,7 @@ export default function DashboardPage() {
           <div className="text-center py-20 border border-dashed border-zinc-800 rounded-xl p-8">
             <FolderOpen className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
             <p className="text-sm font-medium text-zinc-300">Folder is empty</p>
-            <p className="text-xs text-zinc-500 mt-1">Upload a file or create a folder to begin</p>
+            <p className="text-xs text-zinc-500 mt-1">Upload a file, write a note, or create a folder</p>
             <div className="flex items-center justify-center gap-2 mt-4">
               <button
                 onClick={() => setIsNewFolderOpen(true)}
@@ -336,7 +361,7 @@ export default function DashboardPage() {
                 onClick={() => setIsUploadOpen(true)}
                 className="px-3 py-1.5 rounded-md bg-white text-zinc-950 text-xs font-medium hover:bg-zinc-200"
               >
-                Upload File
+                Upload File / Note
               </button>
             </div>
           </div>
@@ -413,7 +438,7 @@ export default function DashboardPage() {
                             </div>
                             <p className="text-[11px] text-zinc-500 truncate mt-0.5">
                               {file.originalName} • {formatBytes(file.size)} •{' '}
-                              {file.storageType === 'mongodb_text' ? 'DB Text' : 'Cloud'}
+                              {file.storageProvider === 'MONGODB' ? 'DB Note' : 'Drive'}
                             </p>
                           </div>
                         </div>
@@ -430,21 +455,18 @@ export default function DashboardPage() {
                               <Link2 className="w-4 h-4" />
                             )}
                           </button>
-                          <a
-                            href={`/api/files/${file._id}/download`}
-                            download={file.originalName}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (file.isProtected) {
-                                e.preventDefault();
-                                setUnlockTargetFile(file);
-                              }
-                            }}
-                            className="p-2 rounded text-zinc-400 hover:text-white"
+                          <button
+                            onClick={(e) => handleDownloadFile(e, file)}
+                            disabled={downloadingFileId === file._id}
+                            className="p-2 rounded text-zinc-400 hover:text-white disabled:opacity-50"
                             title="Download"
                           >
-                            <Download className="w-4 h-4" />
-                          </a>
+                            {downloadingFileId === file._id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+                            ) : (
+                              <Download className="w-4 h-4" />
+                            )}
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -510,21 +532,18 @@ export default function DashboardPage() {
                                 <Link2 className="w-3.5 h-3.5" />
                               )}
                             </button>
-                            <a
-                              href={`/api/files/${file._id}/download`}
-                              download={file.originalName}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (file.isProtected) {
-                                  e.preventDefault();
-                                  setUnlockTargetFile(file);
-                                }
-                              }}
-                              className="text-zinc-400 hover:text-white"
+                            <button
+                              onClick={(e) => handleDownloadFile(e, file)}
+                              disabled={downloadingFileId === file._id}
+                              className="text-zinc-400 hover:text-white disabled:opacity-50"
                               title="Download"
                             >
-                              <Download className="w-3.5 h-3.5" />
-                            </a>
+                              {downloadingFileId === file._id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Download className="w-3.5 h-3.5" />
+                              )}
+                            </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -560,7 +579,7 @@ export default function DashboardPage() {
         </footer>
       </main>
 
-      {/* Mobile-First Sticky Bottom Action Bar (Thumb accessible) */}
+      {/* Mobile-First Sticky Bottom Action Bar */}
       <div className="sm:hidden fixed bottom-0 left-0 right-0 p-3 bg-zinc-950/95 border-t border-zinc-800 flex items-center gap-2 z-20 backdrop-blur-md">
         <button
           onClick={() => setIsNewFolderOpen(true)}
@@ -574,11 +593,11 @@ export default function DashboardPage() {
           className="flex-1 py-2.5 px-3 rounded-lg bg-white text-zinc-950 text-xs font-medium flex items-center justify-center gap-1.5 shadow"
         >
           <Upload className="w-4 h-4 text-zinc-950" />
-          <span>Upload File</span>
+          <span>Upload File / Note</span>
         </button>
       </div>
 
-      {/* Simple Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70">
           <div className="w-full sm:max-w-xs bg-zinc-900 border border-zinc-800 rounded-t-2xl sm:rounded-xl p-5 shadow-xl text-zinc-100">

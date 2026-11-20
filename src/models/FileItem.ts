@@ -7,12 +7,9 @@ export interface IFileItemDoc extends Document {
   extension: string;
   size: number;
   folderId: mongoose.Types.ObjectId | null;
-  storageType: 'cloudinary' | 'mongodb_text';
-  cloudinary?: {
-    publicId: string;
-    secureUrl: string;
-    resourceType: string;
-  };
+  storageProvider: 'MONGODB' | 'GDRIVE';
+  driveFileId?: string | null;
+  uploadStatus: 'PENDING' | 'COMPLETED' | 'FAILED';
   textContent?: string;
   isProtected: boolean;
   passwordHash?: string | null;
@@ -48,18 +45,24 @@ const FileItemSchema = new Schema<IFileItemDoc>(
       ref: 'Folder',
       default: null,
     },
-    storageType: {
+    storageProvider: {
       type: String,
-      enum: ['cloudinary', 'mongodb_text'],
+      enum: ['MONGODB', 'GDRIVE', 'mongodb_text', 'cloudinary'],
+      default: 'GDRIVE',
       required: true,
     },
-    cloudinary: {
-      publicId: { type: String },
-      secureUrl: { type: String },
-      resourceType: { type: String },
+    driveFileId: {
+      type: String,
+      default: null,
+    },
+    uploadStatus: {
+      type: String,
+      enum: ['PENDING', 'COMPLETED', 'FAILED'],
+      default: 'COMPLETED',
     },
     textContent: {
       type: String,
+      default: null,
     },
     isProtected: {
       type: Boolean,
@@ -75,7 +78,7 @@ const FileItemSchema = new Schema<IFileItemDoc>(
   }
 );
 
-FileItemSchema.index({ folderId: 1, createdAt: -1 });
+FileItemSchema.index({ folderId: 1, uploadStatus: 1, createdAt: -1 });
 FileItemSchema.index({ title: 'text', originalName: 'text' });
 
 const FileItem: Model<IFileItemDoc> =

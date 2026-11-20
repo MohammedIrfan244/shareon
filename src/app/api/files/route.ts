@@ -10,16 +10,16 @@ export async function GET(request: Request) {
     const folderIdParam = searchParams.get('folderId');
     const query = searchParams.get('q')?.trim();
 
-    const filter: Record<string, unknown> = {};
+    const filter: Record<string, unknown> = {
+      uploadStatus: { $ne: 'PENDING' },
+    };
 
     if (query) {
-      // Global search across files if search query is provided
       filter.$or = [
         { title: { $regex: query, $options: 'i' } },
         { originalName: { $regex: query, $options: 'i' } },
       ];
     } else {
-      // Directory-based filtering
       const folderId =
         !folderIdParam || folderIdParam === 'root' || folderIdParam === 'null'
           ? null
@@ -32,8 +32,10 @@ export async function GET(request: Request) {
       .select('-passwordHash')
       .lean();
 
-    // Security sanitization: For protected files, NEVER leak secureUrl, publicId, or textContent in listing
     const sanitizedFiles = files.map((file) => {
+      const isMongo = file.storageProvider === 'MONGODB' || (file as { storageType?: string }).storageType === 'mongodb_text';
+      const provider = isMongo ? 'MONGODB' : 'GDRIVE';
+
       if (file.isProtected) {
         return {
           _id: file._id,
@@ -43,12 +45,13 @@ export async function GET(request: Request) {
           extension: file.extension,
           size: file.size,
           folderId: file.folderId,
-          storageType: file.storageType,
+          storageProvider: provider,
           isProtected: true,
           createdAt: file.createdAt,
           updatedAt: file.updatedAt,
         };
       }
+
       return {
         _id: file._id,
         title: file.title,
@@ -57,8 +60,8 @@ export async function GET(request: Request) {
         extension: file.extension,
         size: file.size,
         folderId: file.folderId,
-        storageType: file.storageType,
-        cloudinary: file.cloudinary,
+        storageProvider: provider,
+        driveFileId: file.driveFileId,
         textContent: file.textContent,
         isProtected: false,
         createdAt: file.createdAt,

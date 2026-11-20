@@ -1,9 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, Download, Copy, Check, FileText, Image as ImageIcon, Video, Music, File, Link2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Download,
+  Copy,
+  Check,
+  FileText,
+  Image as ImageIcon,
+  Video,
+  Music,
+  File,
+  Link2,
+  Loader2,
+} from 'lucide-react';
 import { IFileItem } from '@/types';
 import { formatBytes } from '@/lib/file-utils';
+import { downloadFileStream, DownloadProgress } from '@/lib/client/drive-downloader';
 
 interface PreviewModalProps {
   isOpen: boolean;
@@ -11,6 +24,8 @@ interface PreviewModalProps {
   file: IFileItem | null;
   unlockedData?: {
     url?: string;
+    downloadUrl?: string;
+    accessToken?: string;
     textContent?: string;
     password?: string;
   } | null;
@@ -24,6 +39,78 @@ export default function PreviewModal({
 }: PreviewModalProps) {
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
+  const [mediaBlobUrl, setMediaBlobUrl] = useState<string | null>(null);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+
+  const content = unlockedData?.textContent ?? file?.textContent;
+  const isMongo = file?.storageProvider === 'MONGODB' || content !== undefined;
+
+  const mime = file ? file.mimeType.toLowerCase() : '';
+  const isImage = mime.startsWith('image/');
+  const isVideo = mime.startsWith('video/');
+  const isAudio = mime.startsWith('audio/');
+  const isPdf = mime === 'application/pdf';
+
+  // For Drive media preview: fetch with token into object URL if small enough
+  useEffect(() => {
+    let ignore = false;
+    let createdUrl: string | null = null;
+
+    async function loadDriveMedia() {
+      if (!isOpen || !file || isMongo) return;
+      if (!isImage && !isAudio) return;
+      if (file.size > 50 * 1024 * 1024) return; // Only preview media under 50MB
+
+      setLoadingMedia(true);
+      try {
+        let authHeader: string | null = null;
+        let targetUrl: string | null = null;
+
+        if (unlockedData?.downloadUrl && unlockedData?.accessToken) {
+          targetUrl = unlockedData.downloadUrl;
+          authHeader = `Bearer ${unlockedData.accessToken}`;
+        } else if (!file.isProtected) {
+          const res = await fetch(`/api/files/${file._id}/download`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.downloadUrl && data.accessToken) {
+              targetUrl = data.downloadUrl;
+              authHeader = `Bearer ${data.accessToken}`;
+            }
+          }
+        }
+
+        if (targetUrl && authHeader) {
+          const mediaRes = await fetch(targetUrl, {
+            headers: { Authorization: authHeader },
+          });
+          if (mediaRes.ok && !ignore) {
+            const blob = await mediaRes.blob();
+            createdUrl = URL.createObjectURL(blob);
+            setMediaBlobUrl(createdUrl);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load drive preview:', err);
+      } finally {
+        if (!ignore) setLoadingMedia(false);
+      }
+    }
+
+    loadDriveMedia();
+
+    return () => {
+      ignore = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+      setMediaBlobUrl(null);
+    };
+  }, [isOpen, file, isMongo, isImage, isAudio, unlockedData]);
 
   if (!isOpen || !file) return null;
 
@@ -38,16 +125,6 @@ export default function PreviewModal({
     }
   };
 
-  const content = unlockedData?.textContent ?? file.textContent;
-  const url = unlockedData?.url ?? file.cloudinary?.secureUrl;
-  const isText = file.storageType === 'mongodb_text' || content !== undefined;
-
-  const mime = file.mimeType.toLowerCase();
-  const isImage = mime.startsWith('image/');
-  const isVideo = mime.startsWith('video/');
-  const isAudio = mime.startsWith('audio/');
-  const isPdf = mime === 'application/pdf';
-
   const handleCopyText = async () => {
     if (!content) return;
     try {
@@ -55,23 +132,33 @@ export default function PreviewModal({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy', err);
+      console.error('Failed to copy text', err);
     }
   };
 
-  const getDownloadUrl = () => {
-    let dlUrl = `/api/files/${file._id}/download`;
-    if (file.isProtected && unlockedData?.password) {
-      dlUrl += `?p=${encodeURIComponent(unlockedData.password)}`;
+  const handleDownload = async () => {
+    setDownloading(true);
+    setDownloadProgress(null);
+    try {
+      await downloadFileStream({
+        fileId: file._id,
+        password: unlockedData?.password,
+        onProgress: (p) => setDownloadProgress(p),
+      });
+    } catch (err) {
+      console.error('Download failed:', err);
+      alert(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setDownloading(false);
+      setDownloadProgress(null);
     }
-    return dlUrl;
   };
 
   const renderIcon = () => {
     if (isImage) return <ImageIcon className="w-4 h-4 text-zinc-400" />;
     if (isVideo) return <Video className="w-4 h-4 text-zinc-400" />;
     if (isAudio) return <Music className="w-4 h-4 text-zinc-400" />;
-    if (isText) return <FileText className="w-4 h-4 text-zinc-400" />;
+    if (isMongo) return <FileText className="w-4 h-4 text-zinc-400" />;
     return <File className="w-4 h-4 text-zinc-400" />;
   };
 
@@ -85,7 +172,8 @@ export default function PreviewModal({
             <div className="min-w-0">
               <h2 className="text-xs sm:text-sm font-semibold text-white truncate">{file.title}</h2>
               <p className="text-[11px] text-zinc-400 truncate">
-                {file.originalName} • {formatBytes(file.size)}
+                {file.originalName} • {formatBytes(file.size)} •{' '}
+                {isMongo ? 'Database Note' : 'Google Drive'}
               </p>
             </div>
           </div>
@@ -93,7 +181,7 @@ export default function PreviewModal({
             <button
               onClick={handleCopyLink}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium transition-colors"
-              title="Copy link"
+              title="Copy share link"
             >
               {linkCopied ? (
                 <>
@@ -107,16 +195,21 @@ export default function PreviewModal({
                 </>
               )}
             </button>
-            <a
-              href={getDownloadUrl()}
-              download={file.originalName}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-medium transition-colors"
+            <button
+              disabled={downloading}
+              onClick={handleDownload}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Download</span>
-            </a>
+              {downloading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-950" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>{downloading ? 'Downloading...' : 'Download'}</span>
+            </button>
             <button
               onClick={onClose}
+              disabled={downloading}
               className="p-1.5 rounded-md text-zinc-400 hover:text-white"
             >
               <X className="w-4 h-4" />
@@ -124,12 +217,22 @@ export default function PreviewModal({
           </div>
         </div>
 
+        {/* Download progress banner if downloading */}
+        {downloading && downloadProgress && (
+          <div className="px-4 py-2 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between text-xs text-zinc-300">
+            <span>
+              Streaming to disk: {downloadProgress.percentage}% ({formatBytes(downloadProgress.bytesDownloaded)} / {formatBytes(downloadProgress.totalBytes)})
+            </span>
+            <span>{downloadProgress.speedMbps} Mbps</span>
+          </div>
+        )}
+
         {/* Content */}
-        <div className="flex-1 overflow-auto p-3 sm:p-4 bg-zinc-950 flex items-center justify-center min-h-[240px]">
-          {isText ? (
+        <div className="flex-1 overflow-auto p-3 sm:p-4 bg-zinc-950 flex items-center justify-center min-h-[260px]">
+          {isMongo ? (
             <div className="w-full h-full flex flex-col bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
               <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-900 border-b border-zinc-800 text-[11px] text-zinc-400">
-                <span>{file.extension.toUpperCase() || 'TEXT'}</span>
+                <span>{file.extension.toUpperCase() || 'TEXT'} (MongoDB)</span>
                 <button
                   onClick={handleCopyText}
                   className="flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs"
@@ -151,45 +254,45 @@ export default function PreviewModal({
                 {content ?? 'No content available'}
               </pre>
             </div>
-          ) : isImage && url ? (
+          ) : loadingMedia ? (
+            <div className="flex flex-col items-center gap-2 text-zinc-500">
+              <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+              <p className="text-xs">Loading media preview from Google Drive...</p>
+            </div>
+          ) : isImage && mediaBlobUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={url}
+              src={mediaBlobUrl}
               alt={file.title}
               className="max-h-[70vh] max-w-full rounded object-contain"
             />
-          ) : isVideo && url ? (
-            <video
-              controls
-              playsInline
-              src={url}
-              className="max-h-[70vh] max-w-full rounded"
-            />
-          ) : isAudio && url ? (
+          ) : isAudio && mediaBlobUrl ? (
             <div className="w-full max-w-sm p-4 bg-zinc-900 border border-zinc-800 rounded-lg text-center space-y-3">
               <Music className="w-8 h-8 text-zinc-400 mx-auto" />
               <p className="text-xs font-medium text-white">{file.title}</p>
-              <audio controls src={url} className="w-full" />
+              <audio controls src={mediaBlobUrl} className="w-full" />
             </div>
-          ) : isPdf && url ? (
-            <iframe
-              src={url}
-              className="w-full h-[65vh] rounded border border-zinc-800"
-              title={file.title}
-            />
           ) : (
-            <div className="text-center py-10 space-y-2">
+            <div className="text-center py-10 space-y-3">
               <File className="w-8 h-8 text-zinc-500 mx-auto" />
-              <p className="text-xs text-zinc-300">Preview not supported for this file</p>
+              <div>
+                <p className="text-xs font-medium text-zinc-200">{file.title}</p>
+                <p className="text-[11px] text-zinc-500 mt-0.5">
+                  Stored on Google Drive • {formatBytes(file.size)}
+                </p>
+              </div>
+              <p className="text-xs text-zinc-400 max-w-xs mx-auto">
+                Direct zero-RAM streaming download available for this file.
+              </p>
               <div className="pt-2">
-                <a
-                  href={getDownloadUrl()}
-                  download={file.originalName}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-white text-zinc-950 text-xs font-medium"
+                <button
+                  disabled={downloading}
+                  onClick={handleDownload}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-white text-zinc-950 text-xs font-medium hover:bg-zinc-200 disabled:opacity-50 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download file</span>
-                </a>
+                  <span>Download to Device</span>
+                </button>
               </div>
             </div>
           )}

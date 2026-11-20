@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import Folder from '@/models/Folder';
 import FileItem from '@/models/FileItem';
-import cloudinary from '@/lib/cloudinary';
+import { deleteDriveFile } from '@/lib/google-drive';
 import mongoose from 'mongoose';
 
 async function getAllDescendantFolderIds(folderId: mongoose.Types.ObjectId): Promise<mongoose.Types.ObjectId[]> {
@@ -35,20 +35,18 @@ export async function DELETE(
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     }
 
-    // Collect all descendant folder IDs to delete everything cleanly
+    // Collect all descendant folder IDs
     const allFolderIds = await getAllDescendantFolderIds(folderObjectId);
 
-    // Find all files in these folders to remove any Cloudinary assets
+    // Find all files in these folders to remove Google Drive files
     const filesToDelete = await FileItem.find({ folderId: { $in: allFolderIds } });
 
     for (const file of filesToDelete) {
-      if (file.storageType === 'cloudinary' && file.cloudinary?.publicId) {
+      if (file.driveFileId) {
         try {
-          await cloudinary.uploader.destroy(file.cloudinary.publicId, {
-            resource_type: (file.cloudinary.resourceType as 'image' | 'video' | 'raw') || 'image',
-          });
+          await deleteDriveFile(file.driveFileId);
         } catch (err) {
-          console.error(`Failed to delete Cloudinary asset for file ${file._id}:`, err);
+          console.error(`Failed to delete Drive asset for file ${file._id}:`, err);
         }
       }
     }

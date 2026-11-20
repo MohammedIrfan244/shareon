@@ -59,7 +59,7 @@ export default function PrivacyPolicyPage() {
               </li>
               <li>
                 <strong className="text-zinc-200">Media &amp; Binaries:</strong> Uploaded to secure
-                cloud storage via Cloudinary over encrypted TLS connections.
+                cloud storage via Google Drive API over encrypted TLS connections.
               </li>
               <li>
                 <strong className="text-zinc-200">Metadata:</strong> Titles, original filenames,
@@ -99,7 +99,7 @@ export default function PrivacyPolicyPage() {
           <section className="space-y-2">
             <h2 className="text-sm font-semibold text-white">5. Deletion &amp; Data Retention</h2>
             <p className="text-zinc-400">
-              When a user deletes a file or folder, all associated records in MongoDB and binary assets stored on Cloudinary are permanently purged immediately. We do not retain shadow copies or soft-deleted items.
+              When a user deletes a file or folder, all associated records in MongoDB and binary assets stored on Google Drive are permanently purged immediately. We do not retain shadow copies or soft-deleted items.
             </p>
           </section>
 

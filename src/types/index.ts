@@ -1,4 +1,5 @@
-export type StorageType = 'cloudinary' | 'mongodb_text';
+export type StorageProvider = 'MONGODB' | 'GDRIVE';
+export type UploadStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
 
 export interface IFolder {
   _id: string;
@@ -16,12 +17,9 @@ export interface IFileItem {
   extension: string;
   size: number;
   folderId: string | null;
-  storageType: StorageType;
-  cloudinary?: {
-    publicId: string;
-    secureUrl: string;
-    resourceType: string;
-  };
+  storageProvider: StorageProvider;
+  driveFileId?: string | null;
+  uploadStatus?: UploadStatus;
   textContent?: string;
   isProtected: boolean;
   createdAt: string;
@@ -31,4 +29,10 @@ export interface IFileItem {
 export interface BreadcrumbItem {
   id: string | null;
   name: string;
+}
+
+export interface StorageQuota {
+  usage: number;
+  limit: number;
+  remaining: number;
 }

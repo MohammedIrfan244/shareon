@@ -1,14 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, FolderPlus, LogOut, Search, X } from 'lucide-react';
+import { Upload, FolderPlus, LogOut, Search, X, HardDrive } from 'lucide-react';
+import { formatBytes } from '@/lib/file-utils';
+import { StorageQuota } from '@/types';
 
 interface NavbarProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onOpenUpload: () => void;
   onOpenNewFolder: () => void;
+  refreshTrigger?: number;
 }
 
 export default function Navbar({
@@ -16,8 +19,31 @@ export default function Navbar({
   onSearchChange,
   onOpenUpload,
   onOpenNewFolder,
+  refreshTrigger,
 }: NavbarProps) {
   const router = useRouter();
+  const [quota, setQuota] = useState<StorageQuota | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadQuota() {
+      try {
+        const res = await fetch('/api/storage/quota');
+        if (res.ok) {
+          const data = await res.json();
+          if (!ignore && data.limit) {
+            setQuota(data);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadQuota();
+    return () => {
+      ignore = true;
+    };
+  }, [refreshTrigger]);
 
   const handleLogout = async () => {
     try {
@@ -28,6 +54,8 @@ export default function Navbar({
       console.error('Logout error', err);
     }
   };
+
+  const usedPercent = quota ? Math.min(100, Math.round((quota.usage / quota.limit) * 100)) : 0;
 
   return (
     <header className="sticky top-0 z-30 w-full border-b border-zinc-800 bg-zinc-950">
@@ -58,7 +86,26 @@ export default function Navbar({
           )}
         </div>
 
-        {/* Desktop actions (also accessible in bottom bar on mobile) */}
+        {/* Drive Quota (Desktop & Tablet) */}
+        {quota && (
+          <div
+            title={`Drive: ${formatBytes(quota.usage)} of ${formatBytes(quota.limit)} used (${usedPercent}%)`}
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-400 shrink-0"
+          >
+            <HardDrive className="w-3 h-3 text-zinc-500" />
+            <span>
+              {formatBytes(quota.usage, 1)} / {formatBytes(quota.limit, 0)}
+            </span>
+            <div className="w-12 bg-zinc-800 h-1.5 rounded-full overflow-hidden ml-1">
+              <div
+                className="bg-zinc-400 h-full rounded-full"
+                style={{ width: `${Math.max(2, usedPercent)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Desktop actions */}
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={onOpenNewFolder}

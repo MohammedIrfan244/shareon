@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import FileItem from '@/models/FileItem';
-import cloudinary from '@/lib/cloudinary';
 import { isTextFile, getFileExtension } from '@/lib/file-utils';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
-import type { UploadApiResponse } from 'cloudinary';
 
 export async function POST(request: Request) {
   try {
@@ -43,16 +41,14 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      passwordHash = await bcrypt.hash(passwordInput, 12);
+      passwordHash = await bcrypt.hash(passwordInput.trim(), 12);
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const textCandidate = isTextFile(originalName, mimeType);
-
-    if (textCandidate) {
-      // Store directly in MongoDB textContent
+    // Save text files directly to MongoDB
+    if (isTextFile(originalName, mimeType) && size <= 512 * 1024) {
       const textContent = buffer.toString('utf-8');
 
       const fileDoc = await FileItem.create({
@@ -62,7 +58,8 @@ export async function POST(request: Request) {
         extension,
         size,
         folderId,
-        storageType: 'mongodb_text',
+        storageProvider: 'MONGODB',
+        uploadStatus: 'COMPLETED',
         textContent,
         isProtected,
         passwordHash,
@@ -79,60 +76,7 @@ export async function POST(request: Request) {
             extension: fileDoc.extension,
             size: fileDoc.size,
             folderId: fileDoc.folderId,
-            storageType: fileDoc.storageType,
-            isProtected: fileDoc.isProtected,
-            createdAt: fileDoc.createdAt,
-          },
-        },
-        { status: 201 }
-      );
-    } else {
-      // Upload to Cloudinary
-      const uploadResult = await new Promise<UploadApiResponse>((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          {
-            folder: 'shareon',
-            resource_type: 'auto',
-          },
-          (error, result) => {
-            if (error || !result) {
-              return reject(error || new Error('Cloudinary upload returned empty response'));
-            }
-            resolve(result);
-          }
-        );
-        stream.end(buffer);
-      });
-
-      const fileDoc = await FileItem.create({
-        title,
-        originalName,
-        mimeType,
-        extension,
-        size,
-        folderId,
-        storageType: 'cloudinary',
-        cloudinary: {
-          publicId: uploadResult.public_id,
-          secureUrl: uploadResult.secure_url,
-          resourceType: uploadResult.resource_type,
-        },
-        isProtected,
-        passwordHash,
-      });
-
-      return NextResponse.json(
-        {
-          success: true,
-          file: {
-            _id: fileDoc._id,
-            title: fileDoc.title,
-            originalName: fileDoc.originalName,
-            mimeType: fileDoc.mimeType,
-            extension: fileDoc.extension,
-            size: fileDoc.size,
-            folderId: fileDoc.folderId,
-            storageType: fileDoc.storageType,
+            storageProvider: fileDoc.storageProvider,
             isProtected: fileDoc.isProtected,
             createdAt: fileDoc.createdAt,
           },
@@ -140,6 +84,11 @@ export async function POST(request: Request) {
         { status: 201 }
       );
     }
+
+    return NextResponse.json(
+      { error: 'Direct multipart upload is only supported for text files <= 512KB. Use /api/files/upload/init for Google Drive direct upload.' },
+      { status: 400 }
+    );
   } catch (error: unknown) {
     console.error('Upload error:', error);
     const message = error instanceof Error ? error.message : 'Upload failed';
