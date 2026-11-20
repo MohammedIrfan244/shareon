@@ -12,11 +12,12 @@ function getAuthSecret(): Uint8Array {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow static files, Next.js internals, and public assets
+  // Allow static files, Next.js internals, public assets, and privacy policy
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth/login') ||
-    pathname === '/favicon.ico'
+    pathname === '/favicon.ico' ||
+    pathname === '/privacy'
   ) {
     return NextResponse.next();
   }

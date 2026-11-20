@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import UploadModal from '@/components/UploadModal';
 import NewFolderModal from '@/components/NewFolderModal';
@@ -548,6 +549,15 @@ export default function DashboardPage() {
             )}
           </div>
         )}
+
+        <footer className="pt-12 pb-4 text-center">
+          <Link
+            href="/privacy"
+            className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            Privacy Policy
+          </Link>
+        </footer>
       </main>
 
       {/* Mobile-First Sticky Bottom Action Bar (Thumb accessible) */}

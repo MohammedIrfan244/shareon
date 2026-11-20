@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
@@ -97,6 +98,15 @@ export default function LoginPage() {
             {loading ? <Loader2 className="w-4 h-4 animate-spin text-zinc-950" /> : 'Continue'}
           </button>
         </form>
+
+        <div className="mt-8 text-center">
+          <Link
+            href="/privacy"
+            className="text-[11px] text-zinc-500 hover:text-zinc-400 transition-colors"
+          >
+            Privacy Policy
+          </Link>
+        </div>
       </div>
     </div>
   );
