@@ -48,6 +48,10 @@ export async function proxy(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const loginUrl = new URL('/login', request.url);
+    const target = pathname + request.nextUrl.search;
+    if (target && target !== '/' && target !== '/login') {
+      loginUrl.searchParams.set('redirect', target);
+    }
     return NextResponse.redirect(loginUrl);
   }
 

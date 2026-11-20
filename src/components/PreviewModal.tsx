@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Download, Copy, Check, FileText, Image as ImageIcon, Video, Music, File } from 'lucide-react';
+import { X, Download, Copy, Check, FileText, Image as ImageIcon, Video, Music, File, Link2 } from 'lucide-react';
 import { IFileItem } from '@/types';
 import { formatBytes } from '@/lib/file-utils';
 
@@ -23,8 +23,20 @@ export default function PreviewModal({
   unlockedData,
 }: PreviewModalProps) {
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   if (!isOpen || !file) return null;
+
+  const handleCopyLink = async () => {
+    try {
+      const link = `${window.location.origin}/?file=${file._id}`;
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy link', err);
+    }
+  };
 
   const content = unlockedData?.textContent ?? file.textContent;
   const url = unlockedData?.url ?? file.cloudinary?.secureUrl;
@@ -78,6 +90,23 @@ export default function PreviewModal({
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={handleCopyLink}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium transition-colors"
+              title="Copy link"
+            >
+              {linkCopied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Link2 className="w-3.5 h-3.5" />
+                  <span>Copy Link</span>
+                </>
+              )}
+            </button>
             <a
               href={getDownloadUrl()}
               download={file.originalName}

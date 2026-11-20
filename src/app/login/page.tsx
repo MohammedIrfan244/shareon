@@ -29,7 +29,9 @@ export default function LoginPage() {
         throw new Error(data.error || 'Invalid credentials');
       }
 
-      router.push('/');
+      const params = new URLSearchParams(window.location.search);
+      const redirectUrl = params.get('redirect') || '/';
+      router.push(redirectUrl);
       router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid username or password');

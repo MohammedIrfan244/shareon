@@ -20,6 +20,8 @@ import {
   Trash2,
   Download,
   Eye,
+  Link2,
+  Check,
   Loader2,
   FolderOpen,
   Home,
@@ -59,6 +61,64 @@ export default function DashboardPage() {
     title: string;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [copiedFileId, setCopiedFileId] = useState<string | null>(null);
+
+  const handleCopyLink = async (e: React.MouseEvent, fileId: string) => {
+    e.stopPropagation();
+    try {
+      const link = `${window.location.origin}/?file=${fileId}`;
+      await navigator.clipboard.writeText(link);
+      setCopiedFileId(fileId);
+      setTimeout(() => setCopiedFileId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy link', err);
+    }
+  };
+
+  // Handle incoming deep link: ?file=...
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const targetFileId = params.get('file');
+    if (!targetFileId) return;
+
+    async function loadTargetFile() {
+      try {
+        const res = await fetch(`/api/files/${targetFileId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const file: IFileItem = data.file;
+        if (!file) return;
+
+        // If file belongs to a folder, sync the folder view & breadcrumbs
+        if (file.folderId) {
+          setCurrentFolderId(file.folderId);
+          try {
+            const bcRes = await fetch(`/api/folders/breadcrumbs?folderId=${file.folderId}`);
+            if (bcRes.ok) {
+              const bcData = await bcRes.json();
+              if (bcData.breadcrumbs) {
+                setBreadcrumbs(bcData.breadcrumbs);
+              }
+            }
+          } catch {
+            // fallback
+          }
+        }
+
+        // Auto open preview or unlock
+        if (file.isProtected) {
+          setUnlockTargetFile(file);
+        } else {
+          setUnlockedData(null);
+          setPreviewTargetFile(file);
+        }
+      } catch (err) {
+        console.error('Deep link resolution error:', err);
+      }
+    }
+
+    loadTargetFile();
+  }, []);
 
   const refreshData = () => {
     setLoading(true);
@@ -358,6 +418,17 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={(e) => handleCopyLink(e, file._id)}
+                            className="p-2 rounded text-zinc-400 hover:text-white"
+                            title="Copy link"
+                          >
+                            {copiedFileId === file._id ? (
+                              <Check className="w-4 h-4 text-emerald-400" />
+                            ) : (
+                              <Link2 className="w-4 h-4" />
+                            )}
+                          </button>
                           <a
                             href={`/api/files/${file._id}/download`}
                             download={file.originalName}
@@ -427,6 +498,17 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between pt-3 mt-2 border-t border-zinc-800 text-[10px] text-zinc-400">
                           <span>{formatBytes(file.size)}</span>
                           <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={(e) => handleCopyLink(e, file._id)}
+                              className="text-zinc-400 hover:text-white"
+                              title="Copy link"
+                            >
+                              {copiedFileId === file._id ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              ) : (
+                                <Link2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
                             <a
                               href={`/api/files/${file._id}/download`}
                               download={file.originalName}
