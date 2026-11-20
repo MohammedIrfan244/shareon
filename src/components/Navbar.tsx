@@ -86,10 +86,10 @@ export default function Navbar({
           )}
         </div>
 
-        {/* Drive Quota (Desktop & Tablet) */}
+        {/* Storage Quota (Desktop & Tablet) */}
         {quota && (
           <div
-            title={`Drive: ${formatBytes(quota.usage)} of ${formatBytes(quota.limit)} used (${usedPercent}%)`}
+            title={`Private Storage: ${formatBytes(quota.usage)} of ${formatBytes(quota.limit)} used (${usedPercent}%)`}
             className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-400 shrink-0"
           >
             <HardDrive className="w-3 h-3 text-zinc-500" />

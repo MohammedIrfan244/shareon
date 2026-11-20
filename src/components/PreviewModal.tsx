@@ -116,7 +116,7 @@ export default function PreviewModal({
               <h2 className="text-xs sm:text-sm font-semibold text-white truncate">{file.title}</h2>
               <p className="text-[11px] text-zinc-400 truncate">
                 {file.originalName} • {formatBytes(file.size)} •{' '}
-                {isMongo ? 'Database Note' : 'Google Drive'}
+                {isMongo ? 'Database Note' : 'Private Storage'}
               </p>
             </div>
           </div>
@@ -236,7 +236,7 @@ export default function PreviewModal({
               <div>
                 <p className="text-xs font-medium text-zinc-200">{file.title}</p>
                 <p className="text-[11px] text-zinc-500 mt-0.5">
-                  Google Drive • {formatBytes(file.size)}
+                  Private Storage • {formatBytes(file.size)}
                 </p>
               </div>
               <p className="text-xs text-zinc-400 max-w-xs mx-auto">

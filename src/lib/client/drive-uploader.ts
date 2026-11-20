@@ -111,9 +111,9 @@ export async function uploadDirectToDrive(options: DriveUploaderOptions): Promis
           startByte = totalBytes;
           chunkUploaded = true;
         } else if (res.status === 404 || res.status === 410) {
-          throw new Error('Google Drive upload session expired. Please restart upload.');
+          throw new Error('Upload session expired. Please restart upload.');
         } else {
-          throw new Error(`Google Drive returned status ${res.status}`);
+          throw new Error(`Storage returned status ${res.status}`);
         }
       } catch (err) {
         if (signal?.aborted) {
@@ -122,7 +122,7 @@ export async function uploadDirectToDrive(options: DriveUploaderOptions): Promis
 
         attempt++;
         if (attempt >= maxRetries) {
-          throw err instanceof Error ? err : new Error('Network error uploading chunk to Google Drive');
+          throw err instanceof Error ? err : new Error('Network error uploading chunk to storage');
         }
 
         // Exponential backoff: 1s, 2s, 4s, 8s, 16s

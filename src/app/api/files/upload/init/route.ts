@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     const quota = await getDriveStorageQuota();
     if (fileSize > quota.remaining) {
       return NextResponse.json(
-        { error: `Insufficient Google Drive storage. Remaining: ${(quota.remaining / (1024 * 1024)).toFixed(1)} MB` },
+        { error: `Insufficient storage space. Remaining: ${(quota.remaining / (1024 * 1024)).toFixed(1)} MB` },
         { status: 400 }
       );
     }

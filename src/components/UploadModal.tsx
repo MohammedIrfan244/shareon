@@ -290,7 +290,7 @@ export default function UploadModal({
                     {file.name}
                   </p>
                   <p className="text-[11px] text-zinc-400">
-                    {formatBytes(file.size)} • Direct to Google Drive (up to 5 GB)
+                    {formatBytes(file.size)} • Direct to Private Storage (up to 5 GB)
                   </p>
                   {!uploading && (
                     <p className="text-[10px] text-zinc-500 pt-1">Tap to select a different file</p>
@@ -301,7 +301,7 @@ export default function UploadModal({
                   <Upload className="w-5 h-5 text-zinc-400 mx-auto mb-1" />
                   <p className="text-xs text-zinc-300">Tap to browse file (up to 5 GB)</p>
                   <p className="text-[11px] text-zinc-500">
-                    Binaries stream direct to Drive • Text ≤ 512KB saves to DB
+                    Binaries stream direct to Private Storage • Text ≤ 512KB saves to DB
                   </p>
                 </div>
               )}
@@ -398,7 +398,7 @@ export default function UploadModal({
                     disabled={!file}
                     className="px-4 py-2 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 font-medium text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    <span>Upload to Drive</span>
+                    <span>Upload to Storage</span>
                   </button>
                 </>
               )}

@@ -438,7 +438,7 @@ export default function DashboardPage() {
                             </div>
                             <p className="text-[11px] text-zinc-500 truncate mt-0.5">
                               {file.originalName} • {formatBytes(file.size)} •{' '}
-                              {file.storageProvider === 'MONGODB' ? 'DB Note' : 'Drive'}
+                              {file.storageProvider === 'MONGODB' ? 'DB Note' : 'Private Storage'}
                             </p>
                           </div>
                         </div>

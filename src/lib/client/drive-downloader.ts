@@ -84,7 +84,7 @@ export async function downloadFileStream(options: DriveDownloaderOptions): Promi
       });
 
       if (!driveRes.ok || !driveRes.body) {
-        throw new Error(`Google Drive returned status ${driveRes.status}`);
+        throw new Error(`Download failed with status ${driveRes.status}`);
       }
 
       const reader = driveRes.body.getReader();
@@ -136,7 +136,7 @@ export async function downloadFileStream(options: DriveDownloaderOptions): Promi
   });
 
   if (!driveRes.ok || !driveRes.body) {
-    throw new Error(`Google Drive download failed: ${driveRes.statusText}`);
+    throw new Error(`Download failed: ${driveRes.statusText}`);
   }
 
   const reader = driveRes.body.getReader();
